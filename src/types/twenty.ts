@@ -77,7 +77,8 @@ export interface Task {
 export interface Note {
   id?: string;
   title?: string;
-  body: string;
+  body?: string;
+  bodyV2?: string;
   authorId?: string;
 }
 

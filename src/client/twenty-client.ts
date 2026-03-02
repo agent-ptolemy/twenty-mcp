@@ -397,8 +397,7 @@ export class TwentyClient {
         createNote(data: $data) {
           id
           title
-          body
-          authorId
+          bodyV2
         }
       }
     `;
@@ -486,8 +485,8 @@ export class TwentyClient {
 
   async searchOpportunities(input: SearchOpportunitiesInput): Promise<Opportunity[]> {
     const query = `
-      query SearchOpportunities($filter: OpportunityFilterInput, $first: Int, $skip: Int) {
-        opportunities(filter: $filter, first: $first, skip: $skip) {
+      query SearchOpportunities($filter: OpportunityFilterInput, $first: Int) {
+        opportunities(filter: $filter, first: $first) {
           edges {
             node {
               id
@@ -537,7 +536,6 @@ export class TwentyClient {
     const result = await this.client.request(query, {
       filter: Object.keys(filters).length > 0 ? filters : undefined,
       first: input.limit || 20,
-      skip: input.offset || 0,
     }) as { opportunities: { edges: { node: Opportunity }[] } };
 
     return result.opportunities.edges.map(edge => edge.node);
@@ -618,7 +616,7 @@ export class TwentyClient {
             node {
               id
               title
-              body
+              bodyV2
               createdAt
               updatedAt
             }
@@ -1012,7 +1010,7 @@ export class TwentyClient {
 
   async getCompanyContacts(companyId: string): Promise<CompanyContactsResult> {
     const query = `
-      query GetCompanyContacts($companyId: String!) {
+      query GetCompanyContacts($companyId: UUID!) {
         company(filter: { id: { eq: $companyId } }) {
           id
           name
@@ -1060,7 +1058,7 @@ export class TwentyClient {
 
   async getPersonOpportunities(personId: string): Promise<PersonOpportunitiesResult> {
     const query = `
-      query GetPersonOpportunities($personId: String!) {
+      query GetPersonOpportunities($personId: UUID!) {
         person(filter: { id: { eq: $personId } }) {
           id
           name {

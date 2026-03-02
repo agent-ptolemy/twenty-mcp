@@ -413,7 +413,8 @@ export function registerTaskTools(server: McpServer, client: TwentyClient) {
     },
     async (args) => {
     try {
-      const note = await client.createNote(args);
+      const noteData = { title: args.title, bodyV2: args.body };
+      const note = await client.createNote(noteData);
       return {
         content: [{
           type: 'text' as const,
