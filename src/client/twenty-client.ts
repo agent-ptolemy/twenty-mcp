@@ -129,6 +129,32 @@ export class TwentyClient {
     return result.updatePerson;
   }
 
+  async deletePerson(id: string): Promise<{ id: string }> {
+    const mutation = `
+      mutation DeletePerson($id: UUID!) {
+        deletePerson(id: $id) {
+          id
+        }
+      }
+    `;
+
+    const result = await this.client.request(mutation, { id }) as { deletePerson: { id: string } };
+    return result.deletePerson;
+  }
+
+  async deleteCompany(id: string): Promise<{ id: string }> {
+    const mutation = `
+      mutation DeleteCompany($id: UUID!) {
+        deleteCompany(id: $id) {
+          id
+        }
+      }
+    `;
+
+    const result = await this.client.request(mutation, { id }) as { deleteCompany: { id: string } };
+    return result.deleteCompany;
+  }
+
   async searchPeople(query: string, options: SearchOptions = {}): Promise<Person[]> {
     const searchQuery = `
       query SearchPeople($filter: PersonFilterInput, $first: Int, $after: String) {

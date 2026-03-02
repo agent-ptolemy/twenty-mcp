@@ -37,7 +37,9 @@ This MCP server transforms your Twenty CRM instance into a powerful tool accessi
 - **🔐 OAuth 2.1 Authentication**: Secure user-specific API key management
 - **🔒 Full TypeScript Support**: Type-safe operations with validation
 
-**Total: 29 MCP Tools** providing comprehensive CRM automation capabilities. [See full tool list →](TOOLS.md)
+**Total: 31 MCP Tools** providing comprehensive CRM automation capabilities. [See full tool list →](TOOLS.md)
+
+> **Fork note (agent-ptolemy/twenty-mcp):** This fork adds `delete_contact` and `delete_company` tools plus 10 GraphQL type fixes not yet upstream. See [Fork Changes](#fork-changes) below.
 
 ## Understanding MCP Servers
 
@@ -1020,6 +1022,53 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [Twenty CRM](https://twenty.com/) for the open-source CRM platform
 - [Model Context Protocol](https://modelcontextprotocol.io/) for the integration standard
 - [Anthropic](https://anthropic.com/) for Claude and the MCP framework
+
+---
+
+## Fork Changes
+
+This fork (`agent-ptolemy/twenty-mcp`) adds features and fixes not yet in upstream (`jezweb/twenty-mcp`).
+
+### Added tools
+
+| Tool | Mutation | Description |
+|------|----------|-------------|
+| `delete_contact` | `deletePerson` | Soft-delete a contact by ID |
+| `delete_company` | `deleteCompany` | Soft-delete a company by ID |
+
+### Soft delete behaviour
+
+Twenty CRM uses **soft delete**. When `deletePerson` or `deleteCompany` is called:
+
+1. The record gets a `deletedAt` timestamp
+2. It disappears from normal views and search results
+3. It appears in the **Deleted** view in the Twenty UI (Settings > Deleted)
+4. A user can **restore** the record from the Deleted view at any time
+5. Deleting a second time from the Deleted view is **permanent destruction**
+
+This means our delete tools are safe for cleanup operations — records are always recoverable unless permanently purged from the UI.
+
+### GraphQL type fixes (10 patches)
+
+These fix `String!` / `ID!` type mismatches that cause mutations to fail silently or error:
+
+| Fix | File | Change |
+|-----|------|--------|
+| `updatePerson` | `twenty-client.ts` | `$id: ID!` → `UUID!` |
+| `updateCompany` | `twenty-client.ts` | `$id: ID!` → `UUID!` |
+| `updateOpportunity` | `twenty-client.ts` | `$id: ID!` → `UUID!` |
+| `linkOpportunityToCompany` | `twenty-client.ts` | `$id: String!` → `UUID!` |
+| `transferContactToCompany` | `twenty-client.ts` | `$id: String!` → `UUID!` |
+| `search_opportunities` | `index.ts` | Removed unsupported `$skip` parameter |
+| `get_person_opportunities` | `twenty-client.ts` | `$personId: String!` → `UUID!` |
+| `get_company_contacts` | `twenty-client.ts` | `$companyId: String!` → `UUID!` |
+| `create_note` | `twenty-client.ts` | `body` → `bodyV2`, removed `authorId` |
+| `getActivities` | `twenty-client.ts` | `body` → `bodyV2`, removed `authorId` |
+
+### Known issues (upstream)
+
+- **Pagination broken** on `search_contacts` / `search_companies` — `offset` parameter returns the same first page regardless of value
+- **Metadata tools broken** — `list_all_objects`, `get_object_schema`, `get_field_metadata` fail with `Cannot query field "objects"` (GraphQL schema mismatch)
 
 ---
 

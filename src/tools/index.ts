@@ -105,7 +105,29 @@ export function registerPersonTools(server: McpServer, client: TwentyClient) {
     },
     async (args) => {
     try {
-      const { id, ...updates } = args;
+      const { id, firstName, lastName, email, phone, companyId, jobTitle, linkedinUrl, city } = args;
+
+      // Transform flat input to Twenty's nested structure
+      const updates: Record<string, unknown> = {};
+      if (firstName !== undefined || lastName !== undefined) {
+        updates.name = {
+          ...(firstName !== undefined && { firstName }),
+          ...(lastName !== undefined && { lastName }),
+        };
+      }
+      if (email !== undefined) {
+        updates.emails = { primaryEmail: email };
+      }
+      if (phone !== undefined) {
+        updates.phones = { primaryPhoneNumber: phone };
+      }
+      if (companyId !== undefined) updates.companyId = companyId;
+      if (jobTitle !== undefined) updates.jobTitle = jobTitle;
+      if (linkedinUrl !== undefined) {
+        updates.linkedinLink = { primaryLinkUrl: linkedinUrl };
+      }
+      if (city !== undefined) updates.city = city;
+
       const person = await client.updatePerson(id, updates);
       return {
         content: [{
@@ -118,6 +140,31 @@ export function registerPersonTools(server: McpServer, client: TwentyClient) {
         content: [{
           type: 'text' as const,
           text: `Error updating contact: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  });
+
+  server.tool(
+    'delete_contact',
+    'Permanently delete a contact (person) from Twenty CRM. This action cannot be undone.',
+    {
+      id: z.string().describe('Contact ID to delete'),
+    },
+    async (args) => {
+    try {
+      const result = await client.deletePerson(args.id);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Contact deleted successfully (ID: ${result.id})`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error deleting contact: ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
@@ -308,6 +355,31 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
         content: [{
           type: 'text' as const,
           text: `Error updating company: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  });
+
+  server.tool(
+    'delete_company',
+    'Permanently delete a company from Twenty CRM. This action cannot be undone.',
+    {
+      id: z.string().describe('Company ID to delete'),
+    },
+    async (args) => {
+    try {
+      const result = await client.deleteCompany(args.id);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Company deleted successfully (ID: ${result.id})`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error deleting company: ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
