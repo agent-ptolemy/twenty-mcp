@@ -189,7 +189,7 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
           const amount = opp.amount 
             ? `${opp.amount.currencyCode} ${(opp.amount.amountMicros / 1000000).toFixed(2)}`
             : 'N/A';
-          return `- ${opp.name} (${opp.stage || 'No stage'}) - ${amount}`;
+          return `- ${opp.name} (${opp.stage || 'No stage'}) - ${amount} [ID: ${opp.id}]`;
         }).join('\n');
         
         return {
@@ -234,7 +234,7 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
             const amount = opp.amount 
               ? `$${(opp.amount.amountMicros / 1000000).toFixed(2)}`
               : 'No amount';
-            output += `  - ${opp.name}: ${amount}\n`;
+            output += `  - ${opp.name}: ${amount} [ID: ${opp.id}]\n`;
           });
           
           output += '\n';
