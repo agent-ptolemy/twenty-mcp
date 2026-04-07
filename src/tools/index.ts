@@ -305,6 +305,13 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
       xUrl: z.string().url().optional().describe('X (Twitter) company URL'),
       annualRecurringRevenue: z.number().optional().describe('Annual recurring revenue'),
       idealCustomerProfile: z.boolean().optional().describe('Is this an ideal customer profile'),
+      industry: z.string().optional().describe('Company industry'),
+      description: z.string().optional().describe('Company description'),
+      accountOwnerId: z.string().optional().describe('Account owner member ID'),
+      msaSignedDate: z.string().optional().describe('MSA signed date (ISO format, e.g. 2026-04-04)'),
+      ndaSignedDate: z.string().optional().describe('NDA signed date (ISO format, e.g. 2026-04-04)'),
+      sowCount: z.number().optional().describe('Number of SOWs issued to this client'),
+      contractNotes: z.string().optional().describe('Contract status notes'),
     },
     async (args) => {
     try {
@@ -341,6 +348,13 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
           },
         }),
         ...(updateData.idealCustomerProfile !== undefined && { idealCustomerProfile: updateData.idealCustomerProfile }),
+        ...(updateData.industry && { industry: updateData.industry }),
+        ...(updateData.description && { description: updateData.description }),
+        ...(updateData.accountOwnerId && { accountOwnerId: updateData.accountOwnerId }),
+        ...(updateData.msaSignedDate && { msaSignedDate: updateData.msaSignedDate }),
+        ...(updateData.ndaSignedDate && { ndaSignedDate: updateData.ndaSignedDate }),
+        ...(updateData.sowCount !== undefined && { sowCount: updateData.sowCount }),
+        ...(updateData.contractNotes && { contractNotes: updateData.contractNotes }),
       };
 
       const company = await client.updateCompany(id, updates);
@@ -391,18 +405,21 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
     {
       query: z.string().describe('Search query (searches name and domain)'),
       limit: z.number().optional().default(20).describe('Maximum number of results'),
-      offset: z.number().optional().default(0).describe('Number of results to skip'),
+      after: z.string().optional().describe('Cursor for next page (use endCursor from previous response)'),
     },
     async (args) => {
     try {
-      const companies = await client.searchCompanies(args.query, {
+      const result = await client.searchCompanies(args.query, {
         limit: args.limit,
-        offset: args.offset,
+        after: args.after,
       });
       return {
         content: [{
           type: 'text' as const,
-          text: JSON.stringify(companies, null, 2)
+          text: JSON.stringify({
+            companies: result.companies,
+            pageInfo: result.pageInfo,
+          }, null, 2)
         }]
       };
     } catch (error) {
