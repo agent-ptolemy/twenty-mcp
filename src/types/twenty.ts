@@ -63,6 +63,11 @@ export interface Company {
   annualRecurringRevenue?: Currency;
   idealCustomerProfile?: boolean;
   accountOwnerId?: string;
+  accountOwner?: { id: string; name: { firstName: string; lastName: string } };
+  industry?: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Task {
@@ -85,6 +90,7 @@ export interface Note {
 export interface SearchOptions {
   limit?: number;
   offset?: number;
+  after?: string;
   orderBy?: string;
   orderDirection?: 'ASC' | 'DESC';
 }

@@ -275,6 +275,10 @@ export class TwentyClient {
                 currencyCode
               }
               idealCustomerProfile
+              accountOwnerId
+              industry
+              createdAt
+              updatedAt
             }
           }
         }
@@ -316,6 +320,8 @@ export class TwentyClient {
             currencyCode
           }
           idealCustomerProfile
+          createdAt
+          updatedAt
         }
       }
     `;
@@ -324,7 +330,7 @@ export class TwentyClient {
     return result.updateCompany;
   }
 
-  async searchCompanies(query: string, options: SearchOptions = {}): Promise<Company[]> {
+  async searchCompanies(query: string, options: SearchOptions = {}): Promise<{ companies: Company[]; pageInfo: { endCursor: string | null; hasNextPage: boolean } }> {
     const searchQuery = `
       query SearchCompanies($filter: CompanyFilterInput, $first: Int, $after: String) {
         companies(filter: $filter, first: $first, after: $after) {
@@ -357,25 +363,44 @@ export class TwentyClient {
                 currencyCode
               }
               idealCustomerProfile
+              accountOwnerId
+              industry
+              createdAt
+              updatedAt
             }
+          }
+          pageInfo {
+            endCursor
+            hasNextPage
           }
         }
       }
     `;
 
-    const filter = {
+    const filter = query ? {
       or: [
         { name: { ilike: `%${query}%` } },
         { domainName: { primaryLinkUrl: { ilike: `%${query}%` } } }
       ]
+    } : undefined;
+
+    const variables: Record<string, unknown> = {
+      first: options.limit || 20,
+    };
+    if (filter) variables.filter = filter;
+    if (options.after) variables.after = options.after;
+
+    const result = await this.client.request(searchQuery, variables) as {
+      companies: {
+        edges: { node: Company }[];
+        pageInfo: { endCursor: string | null; hasNextPage: boolean };
+      }
     };
 
-    const result = await this.client.request(searchQuery, {
-      filter,
-      first: options.limit || 20,
-    }) as { companies: { edges: { node: Company }[] } };
-
-    return result.companies.edges.map(edge => edge.node);
+    return {
+      companies: result.companies.edges.map(edge => edge.node),
+      pageInfo: result.companies.pageInfo,
+    };
   }
 
   async createTask(task: Task): Promise<Task> {
