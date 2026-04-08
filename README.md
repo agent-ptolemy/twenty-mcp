@@ -39,7 +39,7 @@ This MCP server transforms your Twenty CRM instance into a powerful tool accessi
 
 **Total: 31 MCP Tools** providing comprehensive CRM automation capabilities. [See full tool list →](TOOLS.md)
 
-> **Fork note (agent-ptolemy/twenty-mcp):** This fork adds `delete_contact` and `delete_company` tools plus 10 GraphQL type fixes not yet upstream. See [Fork Changes](#fork-changes) below.
+> **Fork note (agent-ptolemy/twenty-mcp):** This fork adds delete tools, custom contract fields, cursor-based pagination, enhanced company/opportunity queries, and 10 GraphQL type fixes not yet upstream. See [Fork Changes](#fork-changes) below.
 
 ## Understanding MCP Servers
 
@@ -1029,6 +1029,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 This fork (`agent-ptolemy/twenty-mcp`) adds features and fixes not yet in upstream (`jezweb/twenty-mcp`).
 
+**Total tools: 31** (upstream has 29).
+
 ### Added tools
 
 | Tool | Mutation | Description |
@@ -1047,6 +1049,30 @@ Twenty CRM uses **soft delete**. When `deletePerson` or `deleteCompany` is calle
 5. Deleting a second time from the Deleted view is **permanent destruction**
 
 This means our delete tools are safe for cleanup operations — records are always recoverable unless permanently purged from the UI.
+
+### Custom fields on companies
+
+The `update_company` tool supports four custom fields mapped to Twenty custom columns:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `msaSignedDate` | `string` (ISO date) | MSA signed date |
+| `ndaSignedDate` | `string` (ISO date) | NDA signed date |
+| `sowCount` | `number` | Number of SOWs issued to this client |
+| `contractNotes` | `string` | Contract status notes |
+
+These are also returned by `get_company`, `search_companies`, and `update_company`.
+
+### Enhanced company queries
+
+- `search_companies` now supports **cursor-based pagination** via `after` parameter — returns `pageInfo.endCursor` and `pageInfo.hasNextPage` for paging through results
+- `search_companies` supports **empty query** to list all companies
+- Company queries now return additional fields: `accountOwnerId`, `industry`, `createdAt`, `updatedAt`
+- `update_company` accepts `industry`, `description`, and `accountOwnerId`
+
+### Enhanced opportunity queries
+
+- `search_opportunities` and `list_opportunities_by_stage` now include opportunity **IDs** in output
 
 ### GraphQL type fixes (10 patches)
 
@@ -1067,7 +1093,7 @@ These fix `String!` / `ID!` type mismatches that cause mutations to fail silentl
 
 ### Known issues (upstream)
 
-- **Pagination broken** on `search_contacts` / `search_companies` — `offset` parameter returns the same first page regardless of value
+- **Pagination broken** on `search_contacts` — `offset` parameter returns the same first page regardless of value (company search now uses cursor-based pagination as a workaround)
 - **Metadata tools broken** — `list_all_objects`, `get_object_schema`, `get_field_metadata` fail with `Cannot query field "objects"` (GraphQL schema mismatch)
 
 ---
