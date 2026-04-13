@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { TwentyClient } from './client/twenty-client.js';
-import { registerPersonTools, registerCompanyTools, registerTaskTools, registerOpportunityTools } from './tools/index.js';
+import { registerPersonTools, registerCompanyTools, registerTaskTools, registerOpportunityTools, registerActivityTools, registerMetadataTools, registerRelationshipTools } from './tools/index.js';
 import { WellKnownRoutes } from './routes/well-known.js';
 import { AuthMiddleware, AuthenticatedRequest } from './auth/middleware.js';
 import { TokenValidator } from './auth/token-validator.js';
@@ -195,6 +195,9 @@ async function main() {
       registerCompanyTools(server, client);
       registerTaskTools(server, client);
       registerOpportunityTools(server, client);
+      registerActivityTools(server, client);
+      registerMetadataTools(server, client);
+      registerRelationshipTools(server, client);
 
       // Create streamable HTTP transport
       const transport = new StreamableHTTPServerTransport({
