@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createServer } from 'node:http';
+import { createServer, IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -19,14 +19,14 @@ async function main() {
   const authEnabled = process.env.AUTH_ENABLED === 'true';
   const wellKnownRoutes = new WellKnownRoutes();
   const ipMiddleware = new IPMiddleware();
-  
+
   // Initialize auth components only if auth is enabled
   let clerkClient: ClerkClient | null = null;
   let tokenValidator: TokenValidator | null = null;
   let authMiddleware: AuthMiddleware | null = null;
   let keyStorage: any = null;
   let apiKeyRoutes: ApiKeyRoutes | null = null;
-  
+
   if (authEnabled) {
     clerkClient = new ClerkClient();
     tokenValidator = new TokenValidator(clerkClient);
@@ -34,16 +34,16 @@ async function main() {
     keyStorage = getKeyStorageService();
     apiKeyRoutes = new ApiKeyRoutes();
   }
-  
+
   // Parse configuration from multiple sources
   async function parseConfig(url: string, userId?: string) {
     const urlObj = new URL(url, `http://localhost:${port}`);
     const params = urlObj.searchParams;
-    
+
     // Check for user-specific stored API key first
     let apiKey = params.get('apiKey');
     let baseUrl = params.get('baseUrl');
-    
+
     if (authEnabled && userId && !apiKey && keyStorage) {
       const storedKey = await keyStorage.getApiKey(userId);
       if (storedKey) {
@@ -51,46 +51,119 @@ async function main() {
         baseUrl = storedKey.twentyBaseUrl || baseUrl;
       }
     }
-    
+
     // Priority: URL params > User stored key > Environment variables > Smithery config
     return {
-      apiKey: apiKey || 
-              process.env.TWENTY_API_KEY || 
-              process.env.SMITHERY_CONFIG_APIKEY || 
+      apiKey: apiKey ||
+              process.env.TWENTY_API_KEY ||
+              process.env.SMITHERY_CONFIG_APIKEY ||
               process.env.apiKey,
-      baseUrl: baseUrl || 
-               process.env.TWENTY_BASE_URL || 
-               process.env.SMITHERY_CONFIG_BASEURL || 
+      baseUrl: baseUrl ||
+               process.env.TWENTY_BASE_URL ||
+               process.env.SMITHERY_CONFIG_BASEURL ||
                process.env.baseUrl ||
                'https://api.twenty.com',
     };
+  }
+
+  // Session management: map session IDs to their transports
+  const sessions = new Map<string, StreamableHTTPServerTransport>();
+
+  // Create a new MCP session with server and transport
+  async function createSession(config: { apiKey: string; baseUrl?: string }): Promise<StreamableHTTPServerTransport> {
+    const server = new McpServer({
+      name: 'twenty-mcp-server',
+      version: '1.0.0',
+    }, {
+      capabilities: {
+        tools: {},
+        experimental: {
+          authentication: {
+            type: 'oauth2',
+            required: authEnabled && process.env.REQUIRE_AUTH === 'true',
+            enabled: authEnabled,
+            discoveryEndpoints: authEnabled ? {
+              protectedResource: '/.well-known/oauth-protected-resource',
+              authorizationServer: '/.well-known/oauth-authorization-server'
+            } : undefined
+          }
+        }
+      }
+    });
+
+    const client = new TwentyClient({
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+    });
+
+    registerPersonTools(server, client);
+    registerCompanyTools(server, client);
+    registerTaskTools(server, client);
+    registerOpportunityTools(server, client);
+    registerActivityTools(server, client);
+    registerMetadataTools(server, client);
+    registerRelationshipTools(server, client);
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+    });
+
+    // Clean up session when transport closes
+    transport.onclose = () => {
+      const sid = transport.sessionId;
+      if (sid) {
+        sessions.delete(sid);
+      }
+    };
+
+    await server.connect(transport);
+
+    return transport;
+  }
+
+  // Parse request body helper
+  function readBody(req: IncomingMessage): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const bodyText = Buffer.concat(chunks).toString();
+          resolve(bodyText.trim() ? JSON.parse(bodyText) : undefined);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      req.on('error', reject);
+    });
   }
 
   // Create HTTP server
   const httpServer = createServer(async (req, res) => {
     // Check IP allowlist first (before any other processing)
     if (!await ipMiddleware.checkAccess(req, res)) {
-      return; // IP middleware already sent response
+      return;
     }
-    
+
     // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
       await wellKnownRoutes.handleOptions(req, res);
       return;
     }
-    
+
     // Handle health check endpoint
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ 
-        status: 'healthy', 
-        service: 'twenty-mcp-server', 
+      res.end(JSON.stringify({
+        status: 'healthy',
+        service: 'twenty-mcp-server',
         authEnabled,
-        ipProtection: ipMiddleware.getConfig().enabled
+        ipProtection: ipMiddleware.getConfig().enabled,
+        activeSessions: sessions.size
       }));
       return;
     }
-    
+
     // Handle API key management endpoints
     if (req.url?.startsWith('/api/keys')) {
       if (!authEnabled || !authMiddleware || !apiKeyRoutes) {
@@ -105,7 +178,7 @@ async function main() {
       await apiKeyRoutes.handle(authReq, res);
       return;
     }
-    
+
     // Handle OAuth discovery endpoints
     if (req.url === '/.well-known/oauth-protected-resource') {
       if (!authEnabled) {
@@ -116,7 +189,7 @@ async function main() {
       await wellKnownRoutes.handleProtectedResource(req, res);
       return;
     }
-    
+
     if (req.url === '/.well-known/oauth-authorization-server') {
       if (!authEnabled) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -139,15 +212,43 @@ async function main() {
       const authReq = req as AuthenticatedRequest;
       if (authEnabled && authMiddleware) {
         if (!await authMiddleware.authenticate(authReq, res)) {
-          return; // Auth middleware already sent response
+          return;
         }
       }
-      // Parse configuration from query parameters
+
+      // Check for existing session
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+      if (sessionId && sessions.has(sessionId)) {
+        // Existing session — route to stored transport
+        const transport = sessions.get(sessionId)!;
+        if (req.method === 'POST') {
+          const body = await readBody(req);
+          await transport.handleRequest(req, res, body);
+        } else {
+          // GET (SSE notification stream) and DELETE requests
+          await transport.handleRequest(req, res);
+        }
+        return;
+      }
+
+      // If a session ID was provided but not found, return an error
+      // so the client knows to re-initialize
+      if (sessionId) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Session not found. Please re-initialize.' },
+          id: null
+        }));
+        return;
+      }
+
+      // New session — need config and API key
       const userId = authReq.auth?.userId;
       const config = await parseConfig(req.url, userId);
-      
+
       if (!config.apiKey) {
-        // If authenticated but no API key stored
         if (authEnabled && userId) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -156,7 +257,6 @@ async function main() {
           }));
           return;
         }
-        // For non-authenticated requests
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           error: 'Missing required apiKey parameter'
@@ -164,85 +264,36 @@ async function main() {
         return;
       }
 
-      // Create MCP server with Twenty client
-      const server = new McpServer({
-        name: 'twenty-mcp-server',
-        version: '1.0.0',
-      }, {
-        capabilities: {
-          tools: {},
-          experimental: {
-            authentication: {
-              type: 'oauth2',
-              required: authEnabled && process.env.REQUIRE_AUTH === 'true',
-              enabled: authEnabled,
-              discoveryEndpoints: authEnabled ? {
-                protectedResource: '/.well-known/oauth-protected-resource',
-                authorizationServer: '/.well-known/oauth-authorization-server'
-              } : undefined
-            }
-          }
-        }
-      });
+      // Create new session and handle the initialize request
+      const transport = await createSession({ apiKey: config.apiKey!, baseUrl: config.baseUrl });
 
-      const client = new TwentyClient({
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl,
-      });
-
-      // Register tools
-      registerPersonTools(server, client);
-      registerCompanyTools(server, client);
-      registerTaskTools(server, client);
-      registerOpportunityTools(server, client);
-      registerActivityTools(server, client);
-      registerMetadataTools(server, client);
-      registerRelationshipTools(server, client);
-
-      // Create streamable HTTP transport
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-      });
-
-      // Connect server to transport
-      await server.connect(transport);
-
-      // Parse request body for POST requests
-      let body: any = undefined;
       if (req.method === 'POST') {
-        const chunks: Buffer[] = [];
-        req.on('data', (chunk) => chunks.push(chunk));
-        req.on('end', async () => {
-          try {
-            const bodyText = Buffer.concat(chunks).toString();
-            if (bodyText.trim()) {
-              body = JSON.parse(bodyText);
-            }
-            await transport.handleRequest(req, res, body);
-          } catch (error) {
-            console.error('Error parsing request body:', error);
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Invalid JSON in request body' }));
-          }
-        });
-      } else {
-        // Handle GET/DELETE requests
+        const body = await readBody(req);
         await transport.handleRequest(req, res, body);
+      } else {
+        await transport.handleRequest(req, res);
+      }
+
+      // Store session after handling (sessionId is set during initialize)
+      if (transport.sessionId) {
+        sessions.set(transport.sessionId, transport);
       }
     } catch (error) {
       console.error('Error handling request:', error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }));
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Internal server error',
+          message: error instanceof Error ? error.message : 'Unknown error'
+        }));
+      }
     }
   });
 
   httpServer.listen(port, () => {
     console.log(`Twenty MCP Server running at http://localhost:${port}/mcp`);
     console.log(`Health check available at http://localhost:${port}/health`);
-    
+
     // Log configuration source for debugging
     if (process.env.SMITHERY_CONFIG_APIKEY) {
       console.log('Running in Smithery environment');
