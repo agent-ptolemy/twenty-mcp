@@ -66,8 +66,25 @@ async function main() {
     };
   }
 
-  // Session management: map session IDs to their transports
+  // Session management: map session IDs to their transports and last-active time
   const sessions = new Map<string, StreamableHTTPServerTransport>();
+  const sessionLastActive = new Map<string, number>();
+  const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+  // Periodic cleanup of stale sessions
+  setInterval(() => {
+    const now = Date.now();
+    for (const [sid, lastActive] of sessionLastActive) {
+      if (now - lastActive > SESSION_TIMEOUT_MS) {
+        const transport = sessions.get(sid);
+        if (transport) {
+          transport.close?.();
+        }
+        sessions.delete(sid);
+        sessionLastActive.delete(sid);
+      }
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
 
   // Create a new MCP session with server and transport
   async function createSession(config: { apiKey: string; baseUrl?: string }): Promise<StreamableHTTPServerTransport> {
@@ -113,6 +130,7 @@ async function main() {
       const sid = transport.sessionId;
       if (sid) {
         sessions.delete(sid);
+        sessionLastActive.delete(sid);
       }
     };
 
@@ -222,6 +240,7 @@ async function main() {
       if (sessionId && sessions.has(sessionId)) {
         // Existing session — route to stored transport
         const transport = sessions.get(sessionId)!;
+        sessionLastActive.set(sessionId, Date.now());
         if (req.method === 'POST') {
           const body = await readBody(req);
           await transport.handleRequest(req, res, body);
@@ -277,6 +296,7 @@ async function main() {
       // Store session after handling (sessionId is set during initialize)
       if (transport.sessionId) {
         sessions.set(transport.sessionId, transport);
+        sessionLastActive.set(transport.sessionId, Date.now());
       }
     } catch (error) {
       console.error('Error handling request:', error);
