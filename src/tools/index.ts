@@ -175,8 +175,8 @@ export function registerPersonTools(server: McpServer, client: TwentyClient) {
     'Search for contacts in Twenty CRM',
     {
       query: z.string().describe('Search query (searches name and email)'),
-      limit: z.number().optional().default(20).describe('Maximum number of results'),
-      offset: z.number().optional().default(0).describe('Number of results to skip'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of results'),
+      offset: z.coerce.number().optional().default(0).describe('Number of results to skip'),
     },
     async (args) => {
     try {
@@ -209,10 +209,10 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
       name: z.string().describe('Company name'),
       domainName: z.string().optional().describe('Company domain name'),
       address: z.string().optional().describe('Company address'),
-      employees: z.number().optional().describe('Number of employees'),
+      employees: z.coerce.number().optional().describe('Number of employees'),
       linkedinUrl: z.string().url().optional().describe('LinkedIn company URL'),
       xUrl: z.string().url().optional().describe('X (Twitter) company URL'),
-      annualRecurringRevenue: z.number().optional().describe('Annual recurring revenue'),
+      annualRecurringRevenue: z.coerce.number().optional().describe('Annual recurring revenue'),
       idealCustomerProfile: z.boolean().optional().describe('Is this an ideal customer profile'),
     },
     async (args) => {
@@ -300,17 +300,17 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
       name: z.string().optional().describe('Company name'),
       domainName: z.string().optional().describe('Company domain name'),
       address: z.string().optional().describe('Company address'),
-      employees: z.number().optional().describe('Number of employees'),
+      employees: z.coerce.number().optional().describe('Number of employees'),
       linkedinUrl: z.string().url().optional().describe('LinkedIn company URL'),
       xUrl: z.string().url().optional().describe('X (Twitter) company URL'),
-      annualRecurringRevenue: z.number().optional().describe('Annual recurring revenue'),
+      annualRecurringRevenue: z.coerce.number().optional().describe('Annual recurring revenue'),
       idealCustomerProfile: z.boolean().optional().describe('Is this an ideal customer profile'),
       industry: z.string().optional().describe('Company industry'),
       description: z.string().optional().describe('Company description'),
       accountOwnerId: z.string().optional().describe('Account owner member ID'),
       msaSignedDate: z.string().optional().describe('MSA signed date (ISO format, e.g. 2026-04-04)'),
       ndaSignedDate: z.string().optional().describe('NDA signed date (ISO format, e.g. 2026-04-04)'),
-      sowCount: z.number().optional().describe('Number of SOWs issued to this client'),
+      sowCount: z.coerce.number().optional().describe('Number of SOWs issued to this client'),
       contractNotes: z.string().optional().describe('Contract status notes'),
     },
     async (args) => {
@@ -404,7 +404,7 @@ export function registerCompanyTools(server: McpServer, client: TwentyClient) {
     'Search for companies in Twenty CRM',
     {
       query: z.string().describe('Search query (searches name and domain)'),
-      limit: z.number().optional().default(20).describe('Maximum number of results'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of results'),
       after: z.string().optional().describe('Cursor for next page (use endCursor from previous response)'),
     },
     async (args) => {
@@ -467,8 +467,8 @@ export function registerTaskTools(server: McpServer, client: TwentyClient) {
     'get_tasks',
     'Retrieve tasks from Twenty CRM',
     {
-      limit: z.number().optional().default(20).describe('Maximum number of results'),
-      offset: z.number().optional().default(0).describe('Number of results to skip'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of results'),
+      offset: z.coerce.number().optional().default(0).describe('Number of results to skip'),
     },
     async (args) => {
     try {

@@ -9,7 +9,7 @@ export function registerOpportunityTools(server: McpServer, client: TwentyClient
     {
       name: z.string().describe('Opportunity name'),
       amount: z.object({
-        value: z.number().describe('Amount in currency units (e.g., 1000.50 for $1,000.50)'),
+        value: z.coerce.number().describe('Amount in currency units (e.g., 1000.50 for $1,000.50)'),
         currency: z.string().default('USD').describe('Currency code (e.g., USD, EUR)')
       }).optional().describe('Deal amount'),
       stage: z.string().optional().describe('Sales stage (e.g., NEW, SCREENING, MEETING, PROPOSAL, CUSTOMER)'),
@@ -109,7 +109,7 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
       id: z.string().describe('Opportunity ID to update'),
       name: z.string().optional().describe('Opportunity name'),
       amount: z.object({
-        value: z.number().describe('Amount in currency units'),
+        value: z.coerce.number().describe('Amount in currency units'),
         currency: z.string().describe('Currency code')
       }).optional().describe('Deal amount'),
       stage: z.string().optional().describe('Sales stage'),
@@ -163,13 +163,13 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
     {
       query: z.string().optional().describe('Search query for opportunity name'),
       stage: z.string().optional().describe('Filter by specific stage'),
-      minAmount: z.number().optional().describe('Minimum deal amount'),
-      maxAmount: z.number().optional().describe('Maximum deal amount'),
+      minAmount: z.coerce.number().optional().describe('Minimum deal amount'),
+      maxAmount: z.coerce.number().optional().describe('Maximum deal amount'),
       startDate: z.string().optional().describe('Start date for close date range (ISO 8601)'),
       endDate: z.string().optional().describe('End date for close date range (ISO 8601)'),
       companyId: z.string().optional().describe('Filter by company ID'),
-      limit: z.number().default(20).describe('Maximum number of results'),
-      offset: z.number().default(0).describe('Number of results to skip')
+      limit: z.coerce.number().default(20).describe('Maximum number of results'),
+      offset: z.coerce.number().default(0).describe('Number of results to skip')
     },
     async (input) => {
       try {

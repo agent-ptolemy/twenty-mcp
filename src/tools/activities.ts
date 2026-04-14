@@ -11,8 +11,8 @@ export function registerActivityTools(server: McpServer, client: TwentyClient) {
       dateFrom: z.string().optional().describe('Start date filter (ISO 8601 format)'),
       dateTo: z.string().optional().describe('End date filter (ISO 8601 format)'),
       authorId: z.string().optional().describe('Filter by author/assignee ID'),
-      limit: z.number().optional().default(20).describe('Maximum number of activities to return'),
-      offset: z.number().optional().default(0).describe('Number of activities to skip'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of activities to return'),
+      offset: z.coerce.number().optional().default(0).describe('Number of activities to skip'),
     },
     async (args) => {
       try {
@@ -69,8 +69,8 @@ ${timeline.hasMore ? 'Use offset parameter to load more activities.' : 'No more 
       dateTo: z.string().optional().describe('End date (ISO 8601 format)'),
       authorId: z.string().optional().describe('Filter by author/assignee ID'),
       status: z.array(z.string()).optional().describe('Task status filter (for tasks only)'),
-      limit: z.number().optional().default(20).describe('Maximum number of results'),
-      offset: z.number().optional().default(0).describe('Number of results to skip'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of results'),
+      offset: z.coerce.number().optional().default(0).describe('Number of results to skip'),
     },
     async (args) => {
       try {
@@ -174,8 +174,8 @@ Created: ${new Date(comment.createdAt).toLocaleString()}`
       entityId: z.string().describe('ID of the entity'),
       entityType: z.enum(['person', 'company', 'opportunity']).describe('Type of entity'),
       includeComments: z.boolean().optional().default(true).describe('Include comments in results'),
-      limit: z.number().optional().default(20).describe('Maximum number of activities'),
-      offset: z.number().optional().default(0).describe('Number of activities to skip'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of activities'),
+      offset: z.coerce.number().optional().default(0).describe('Number of activities to skip'),
     },
     async (args) => {
       try {
