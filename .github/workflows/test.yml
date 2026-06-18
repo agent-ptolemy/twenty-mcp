@@ -48,6 +48,9 @@ jobs:
     - name: Run entity-activities / orphan-detection unit tests
       run: node tests/entity-activities-orphans.test.js
 
+    - name: Run note-tools / record-url unit tests
+      run: node tests/note-tools.test.js
+
     - name: Validate configuration structure
       run: node validate-config.js || true  # Don't fail on missing API key
       

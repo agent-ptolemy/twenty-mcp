@@ -487,6 +487,98 @@ export class TwentyClient {
     return result.createNote;
   }
 
+  // Read a single note by id. Returns null when not found.
+  async getNote(id: string): Promise<Note | null> {
+    const query = `
+      query GetNote($id: UUID!) {
+        note(filter: { id: { eq: $id } }) {
+          id
+          title
+          bodyV2 { blocknote markdown }
+          createdAt
+          updatedAt
+        }
+      }
+    `;
+    const result = await this.client.request(query, { id }) as { note: Note | null };
+    return result.note ?? null;
+  }
+
+  // List notes, newest-first, with simple paging.
+  async listNotes(options: { limit?: number; offset?: number } = {}): Promise<Note[]> {
+    const limit = options.limit ?? 20;
+    const query = `
+      query ListNotes($first: Int) {
+        notes(first: $first, orderBy: { createdAt: DescNullsLast }) {
+          edges {
+            node {
+              id
+              title
+              bodyV2 { blocknote markdown }
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+    `;
+    const result = await this.client.request(query, { first: (options.offset ?? 0) + limit }) as
+      { notes: { edges: { node: Note }[] } };
+    const all = (result?.notes?.edges ?? []).map(e => e.node);
+    return all.slice(options.offset ?? 0, (options.offset ?? 0) + limit);
+  }
+
+  // Search notes by title substring. Twenty's filter supports `ilike` for
+  // case-insensitive partial matches; `%term%` matches anywhere in the title.
+  async searchNotes(searchTerm: string, options: { limit?: number } = {}): Promise<Note[]> {
+    const limit = options.limit ?? 20;
+    const query = `
+      query SearchNotes($first: Int, $term: String) {
+        notes(
+          first: $first
+          filter: { title: { ilike: $term } }
+          orderBy: { createdAt: DescNullsLast }
+        ) {
+          edges {
+            node {
+              id
+              title
+              bodyV2 { blocknote markdown }
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+    `;
+    const result = await this.client.request(query, { first: limit, term: `%${searchTerm}%` }) as
+      { notes: { edges: { node: Note }[] } };
+    return (result?.notes?.edges ?? []).map(e => e.node);
+  }
+
+  // Build a Twenty UI deep-link for a record. The client's baseUrl points at
+  // the API host (e.g. https://api.twenty.com); the UI lives at a different
+  // origin. Resolution order: explicit TWENTY_UI_URL env, then derive from the
+  // API host by stripping a leading `api.` (the cloud convention), else fall
+  // back to the base host. objectName is the singular object API name
+  // (e.g. "company", "person", "opportunity", "note").
+  getRecordUrl(objectName: string, recordId: string): string {
+    const explicit = process.env.TWENTY_UI_URL;
+    let uiBase: string;
+    if (explicit) {
+      uiBase = explicit.replace(/\/+$/, '');
+    } else {
+      try {
+        const u = new URL(this.baseUrl);
+        u.hostname = u.hostname.replace(/^api\./, '');
+        uiBase = `${u.protocol}//${u.host}`;
+      } catch {
+        uiBase = this.baseUrl.replace(/\/+$/, '');
+      }
+    }
+    return `${uiBase}/object/${objectName}/${recordId}`;
+  }
+
   async createOpportunity(opportunity: CreateOpportunityInput): Promise<Opportunity> {
     const mutation = `
       mutation CreateOpportunity($data: OpportunityCreateInput!) {

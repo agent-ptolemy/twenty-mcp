@@ -39,7 +39,7 @@ This MCP server transforms your Twenty CRM instance into a powerful tool accessi
 
 **Total: 31 MCP Tools** providing comprehensive CRM automation capabilities. [See full tool list →](TOOLS.md)
 
-> **Fork note:** This fork adds delete tools, configurable custom fields, cursor-based pagination, enhanced company/opportunity queries, and 10 GraphQL type fixes not yet upstream. See [Fork Changes](#fork-changes) below.
+> **Fork note:** This fork adds delete tools, note read tools, record URL helper, configurable custom fields, cursor-based pagination, enhanced company/opportunity queries, and 10 GraphQL type fixes not yet upstream. See [Fork Changes](#fork-changes) below.
 
 ## Understanding MCP Servers
 
@@ -1051,14 +1051,18 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 This fork adds features and fixes not yet in upstream (`jezweb/twenty-mcp`).
 
-**Total tools: 31** (upstream has 29).
+**Total tools: 35** (upstream has 29).
 
 ### Added tools
 
-| Tool | Mutation | Description |
+| Tool | Mutation / Query | Description |
 |------|----------|-------------|
 | `delete_contact` | `deletePerson` | Soft-delete a contact by ID |
 | `delete_company` | `deleteCompany` | Soft-delete a company by ID |
+| `search_notes` | `notes` | Search notes by title (case-insensitive partial match) |
+| `get_note` | `note` | Get a single note by ID |
+| `list_notes` | `notes` | List notes, newest first |
+| `get_record_url` | — | Build a Twenty UI deep-link for a record |
 
 ### Soft delete behaviour
 

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TwentyClient, serializeRichText } from '../client/twenty-client.js';
 import { registerOpportunityTools } from './opportunities.js';
-import { registerActivityTools } from './activities.js';
+import { registerActivityTools, registerNoteTools } from './activities.js';
 import { registerMetadataTools } from './metadata.js';
 import {
   loadCustomFields,
@@ -791,4 +791,4 @@ export function registerRelationshipTools(server: McpServer, client: TwentyClien
   );
 }
 
-export { registerOpportunityTools, registerActivityTools, registerMetadataTools };
+export { registerOpportunityTools, registerActivityTools, registerNoteTools, registerMetadataTools };
