@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+
+# Instance-specific custom field definitions (never commit your schema)
+custom-fields.json
+.DS_Store
+*.tsbuildinfo
+claude_desktop_config.json
+
+# Test results (keep directory, ignore files)
+test-results/*
+!test-results/.gitkeep
+
+# Smithery
+.smithery/build/
+.smithery/deploy/
+.smithery/*.log
+!.smithery/config.json

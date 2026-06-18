@@ -1,0 +1,75 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run linting
+      run: npm run lint
+      
+    - name: Run type checking
+      run: npm run typecheck
+      
+    - name: Build project
+      run: npm run build
+      
+    - name: Run smoke tests
+      run: npm run test:smoke
+
+    - name: Run session resurrection tests
+      run: node tests/session-resurrection.test.js
+
+    - name: Run metadata / orphaned-records unit tests
+      run: node tests/metadata-orphaned.test.js
+
+    - name: Validate configuration structure
+      run: node validate-config.js || true  # Don't fail on missing API key
+      
+  integration-test:
+    runs-on: ubuntu-latest
+    if: ${{ vars.TWENTY_API_KEY != '' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build project
+      run: npm run build
+      
+    - name: Run integration tests
+      env:
+        TWENTY_API_KEY: ${{ vars.TWENTY_API_KEY }}
+        TWENTY_BASE_URL: ${{ vars.TWENTY_BASE_URL }}
+      run: npm test
