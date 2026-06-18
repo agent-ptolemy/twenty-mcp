@@ -101,6 +101,8 @@ export interface Note {
   id?: string;
   title?: string;
   bodyV2?: RichText;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface NoteCreateInput {

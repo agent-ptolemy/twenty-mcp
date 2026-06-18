@@ -68,9 +68,17 @@ console.log('findOrphanedRecords (#12)');
     },
   };
 
+  // findOrphanedRecords issues four queries in order: companies, contacts,
+  // opportunities, tasks (the latter two added in issue #1). Supply all four.
+  const responses = [
+    data,
+    contacts,
+    { opportunities: { edges: [] } },
+    { tasks: { edges: [] } },
+  ];
   let call = 0;
   const client = makeClient({
-    dataRequest: async () => (call++ === 0 ? data : contacts),
+    dataRequest: async () => responses[call++],
   });
 
   const result = await client.findOrphanedRecords();

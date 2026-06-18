@@ -186,3 +186,107 @@ ${timeline.hasMore ? `Use offset=${args.offset! + args.limit!} to load more acti
     }
   );
 }
+
+// Note read tools and a UI deep-link helper. The upstream/base fork only
+// exposes create_note; these add read access (search / get / list) plus
+// get_record_url so agents can hand users a clickable Twenty UI link.
+export function registerNoteTools(server: McpServer, client: TwentyClient) {
+  const formatNote = (note: any): string => {
+    const created = note.createdAt ? new Date(note.createdAt).toLocaleDateString() : 'unknown date';
+    const body = note.bodyV2?.markdown ?? '';
+    const preview = body ? `\n   ${body.substring(0, 200)}${body.length > 200 ? '...' : ''}` : '';
+    return `[NOTE] ${note.title || 'Untitled'} (${created})\n   ID: ${note.id}${preview}`;
+  };
+
+  server.tool(
+    'search_notes',
+    'Search notes in Twenty CRM by title (case-insensitive partial match)',
+    {
+      searchTerm: z.string().describe('Text to match against note titles'),
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of notes to return'),
+    },
+    async (args) => {
+      try {
+        const notes = await client.searchNotes(args.searchTerm, { limit: args.limit });
+        if (notes.length === 0) {
+          return { content: [{ type: 'text' as const, text: `No notes found matching "${args.searchTerm}".` }] };
+        }
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Found ${notes.length} note(s) matching "${args.searchTerm}":\n\n${notes.map(formatNote).join('\n\n')}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: `Error searching notes: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    'get_note',
+    'Get a single note by ID from Twenty CRM',
+    {
+      id: z.string().describe('Note ID'),
+    },
+    async (args) => {
+      try {
+        const note = await client.getNote(args.id);
+        if (!note) {
+          return { content: [{ type: 'text' as const, text: `No note found with ID ${args.id}.` }] };
+        }
+        const body = note.bodyV2?.markdown ?? '(no body)';
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `[NOTE] ${note.title || 'Untitled'}\nID: ${note.id}\nCreated: ${note.createdAt ?? 'unknown'}\n\n${body}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: `Error retrieving note: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    'list_notes',
+    'List notes in Twenty CRM, newest first',
+    {
+      limit: z.coerce.number().optional().default(20).describe('Maximum number of notes to return'),
+      offset: z.coerce.number().optional().default(0).describe('Number of notes to skip'),
+    },
+    async (args) => {
+      try {
+        const notes = await client.listNotes({ limit: args.limit, offset: args.offset });
+        if (notes.length === 0) {
+          return { content: [{ type: 'text' as const, text: 'No notes found.' }] };
+        }
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Notes (showing ${notes.length}):\n\n${notes.map(formatNote).join('\n\n')}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: `Error listing notes: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    'get_record_url',
+    'Build a Twenty UI deep-link for a record so it can be opened in a browser',
+    {
+      objectName: z.string().describe('Object API name, e.g. company, person, opportunity, note, task'),
+      recordId: z.string().describe('The record ID'),
+    },
+    async (args) => {
+      try {
+        const url = client.getRecordUrl(args.objectName, args.recordId);
+        return { content: [{ type: 'text' as const, text: url }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: `Error building record URL: ${error instanceof Error ? error.message : 'Unknown error'}` }] };
+      }
+    }
+  );
+}
