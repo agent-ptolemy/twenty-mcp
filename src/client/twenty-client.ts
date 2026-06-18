@@ -786,16 +786,132 @@ export class TwentyClient {
   }
 
   async getEntityActivities(input: EntityActivitiesInput): Promise<ActivityTimeline> {
-    // For now, we'll get general activities and filter client-side
-    // In a real implementation, you'd want to use the entity relationships in the GraphQL query
-    const activities = await this.getActivities({
-      limit: input.limit,
-      offset: input.offset
+    // ISSUE #1: the previous implementation ignored entityId/entityType and
+    // returned the GLOBAL activity feed, so every entity appeared to share an
+    // identical timeline — confident but wrong data for agents. We now scope to
+    // the entity through Twenty's relationship model.
+    //
+    // Twenty links notes and tasks to records via junction objects
+    // (`noteTargets` / `taskTargets`), each carrying optional companyId /
+    // personId / opportunityId. To get activities for an entity we query those
+    // target objects filtered by the entity id, then read the linked note/task.
+    const targetField =
+      input.entityType === 'person' ? 'personId'
+      : input.entityType === 'company' ? 'companyId'
+      : input.entityType === 'opportunity' ? 'opportunityId'
+      : null;
+
+    // Defensive (issue recommendation #2): if we cannot map the entity type to
+    // a scoping field, return a clear error rather than a misleading global feed.
+    if (!targetField) {
+      throw new Error(`Unsupported entityType for scoped activities: ${input.entityType}`);
+    }
+
+    const limit = input.limit ?? 20;
+    const offset = input.offset ?? 0;
+
+    const noteTargetsQuery = `
+      query GetNoteTargets($first: Int) {
+        noteTargets(filter: { ${targetField}: { eq: $entityId } }, first: $first) {
+          edges {
+            node {
+              note {
+                id
+                title
+                bodyV2 { blocknote markdown }
+                createdAt
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+    `.replace('$entityId', JSON.stringify(input.entityId));
+
+    const taskTargetsQuery = `
+      query GetTaskTargets($first: Int) {
+        taskTargets(filter: { ${targetField}: { eq: $entityId } }, first: $first) {
+          edges {
+            node {
+              task {
+                id
+                title
+                bodyV2 { blocknote markdown }
+                status
+                dueAt
+                assigneeId
+                assignee { id name { firstName lastName } }
+                createdAt
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+    `.replace('$entityId', JSON.stringify(input.entityId));
+
+    // Fetch a generous window so date-sort + pagination is meaningful; we page
+    // client-side over the combined, sorted set.
+    const fetchWindow = offset + limit;
+    const [noteTargetsResult, taskTargetsResult] = await Promise.all([
+      this.client.request(noteTargetsQuery, { first: Math.max(fetchWindow, limit) }),
+      this.client.request(taskTargetsQuery, { first: Math.max(fetchWindow, limit) })
+    ]);
+
+    const typedNotes = noteTargetsResult as { noteTargets: { edges: { node: { note: any } }[] } };
+    const typedTasks = taskTargetsResult as { taskTargets: { edges: { node: { task: any } }[] } };
+
+    const activities: Activity[] = [];
+
+    typedTasks.taskTargets.edges.forEach(edge => {
+      const task = edge.node?.task;
+      if (!task) return;
+      activities.push({
+        id: task.id,
+        type: 'task',
+        title: task.title,
+        body: task.bodyV2?.markdown,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        authorId: task.assigneeId,
+        author: task.assignee
+      });
     });
 
-    // Note: This is a simplified implementation. In practice, you'd want to query
-    // activities that are specifically related to the entity through proper GraphQL relationships
-    return activities;
+    typedNotes.noteTargets.edges.forEach(edge => {
+      const note = edge.node?.note;
+      if (!note) return;
+      activities.push({
+        id: note.id,
+        type: 'note',
+        title: note.title,
+        body: note.bodyV2?.markdown,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+        authorId: undefined,
+        author: undefined
+      });
+    });
+
+    // De-duplicate: a note/task can be targeted to the same entity more than
+    // once; keep the first occurrence per id.
+    const seen = new Set<string>();
+    const deduped = activities.filter(a => {
+      const key = `${a.type}:${a.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Sort newest-first, then apply offset/limit for honest pagination.
+    deduped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const page = deduped.slice(offset, offset + limit);
+
+    return {
+      activities: page,
+      totalCount: deduped.length,
+      hasMore: offset + limit < deduped.length
+    };
   }
 
   async listAllObjects(options: MetadataQueryOptions = {}): Promise<ObjectSummary> {
@@ -1381,6 +1497,62 @@ export class TwentyClient {
       name: `${edge.node.name?.firstName ?? ''} ${edge.node.name?.lastName ?? ''}`.trim(),
       hasCompany: !!edge.node.companyId,
       opportunityCount: edge.node.opportunities?.totalCount ?? 0
+    }));
+
+    // ISSUE #1: opportunities and tasks were declared in the result shape but
+    // never queried, so the tool always reported 0 orphaned opportunities/tasks
+    // regardless of the underlying data — false reassurance. We now query both.
+    //
+    // An opportunity is "orphaned" if it has neither a linked company nor a
+    // point of contact. We surface hasCompany / hasContact separately so the
+    // tool output can distinguish "missing company" from "missing contact"
+    // rather than lumping them under a vague bucket.
+    const opportunitiesQuery = `
+      query GetOpportunitiesForOrphanCheck {
+        opportunities(first: 1000) {
+          edges {
+            node {
+              id
+              name
+              companyId
+              pointOfContactId
+            }
+          }
+        }
+      }
+    `;
+
+    const opportunitiesResult = await this.client.request(opportunitiesQuery) as any;
+    orphaned.opportunities = (opportunitiesResult?.opportunities?.edges ?? [])
+      .map((edge: any) => edge.node)
+      .filter((opp: any) => !opp.companyId || !opp.pointOfContactId)
+      .map((opp: any) => ({
+        id: opp.id,
+        name: opp.name ?? '',
+        hasCompany: !!opp.companyId,
+        hasContact: !!opp.pointOfContactId
+      }));
+
+    // A task is "orphaned" if it has no assignee.
+    const tasksQuery = `
+      query GetTasksForOrphanCheck {
+        tasks(filter: { assigneeId: { is: "NULL" } }, first: 1000) {
+          edges {
+            node {
+              id
+              title
+              assigneeId
+            }
+          }
+        }
+      }
+    `;
+
+    const tasksResult = await this.client.request(tasksQuery) as any;
+    orphaned.tasks = (tasksResult?.tasks?.edges ?? []).map((edge: any) => ({
+      id: edge.node.id,
+      title: edge.node.title ?? '',
+      hasAssignee: !!edge.node.assigneeId
     }));
 
     return orphaned;
