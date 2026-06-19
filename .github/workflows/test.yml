@@ -51,6 +51,9 @@ jobs:
     - name: Run note-tools / record-url unit tests
       run: node tests/note-tools.test.js
 
+    - name: Run custom-fields loader unit tests
+      run: node tests/custom-fields.test.js
+
     - name: Validate configuration structure
       run: node validate-config.js || true  # Don't fail on missing API key
       

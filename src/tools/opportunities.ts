@@ -1,8 +1,17 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TwentyClient } from '../client/twenty-client.js';
+import {
+  loadCustomFields,
+  customFieldsZodShape,
+  pickCustomFieldValues,
+} from '../config/custom-fields.js';
 
 export function registerOpportunityTools(server: McpServer, client: TwentyClient) {
+  // Operator-defined custom fields for the Opportunity object (empty by default).
+  // See src/config/custom-fields.ts and .env.example (CUSTOM_OPPORTUNITY_FIELDS).
+  const opportunityCustomFields = loadCustomFields('opportunity');
+
   server.tool(
     'create_opportunity',
     'Create a new opportunity/deal in Twenty CRM',
@@ -15,24 +24,27 @@ export function registerOpportunityTools(server: McpServer, client: TwentyClient
       stage: z.string().optional().describe('Sales stage (e.g., NEW, SCREENING, MEETING, PROPOSAL, CUSTOMER)'),
       closeDate: z.string().optional().describe('Expected close date (ISO 8601 format)'),
       companyId: z.string().optional().describe('ID of associated company'),
-      pointOfContactId: z.string().optional().describe('ID of main contact person')
+      pointOfContactId: z.string().optional().describe('ID of main contact person'),
+      ...customFieldsZodShape(opportunityCustomFields),
     },
-    async ({ name, amount, stage, closeDate, companyId, pointOfContactId }) => {
+    async (args) => {
       try {
+        const { name, amount, stage, closeDate, companyId, pointOfContactId } = args;
         const opportunityData: any = { name };
-        
+
         if (amount) {
           opportunityData.amount = {
             amountMicros: Math.round(amount.value * 1000000),
             currencyCode: amount.currency
           };
         }
-        
+
         if (stage) opportunityData.stage = stage;
         if (closeDate) opportunityData.closeDate = closeDate;
         if (companyId) opportunityData.companyId = companyId;
         if (pointOfContactId) opportunityData.pointOfContactId = pointOfContactId;
-        
+        Object.assign(opportunityData, pickCustomFieldValues(opportunityCustomFields, args as Record<string, unknown>));
+
         const opportunity = await client.createOpportunity(opportunityData);
         
         return {
@@ -115,12 +127,13 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
       stage: z.string().optional().describe('Sales stage'),
       closeDate: z.string().optional().describe('Expected close date'),
       companyId: z.string().optional().describe('ID of associated company'),
-      pointOfContactId: z.string().optional().describe('ID of main contact person')
+      pointOfContactId: z.string().optional().describe('ID of main contact person'),
+      ...customFieldsZodShape(opportunityCustomFields),
     },
     async (input) => {
       try {
         const updateData: any = {};
-        
+
         if (input.name) updateData.name = input.name;
         if (input.amount) {
           updateData.amount = {
@@ -132,7 +145,8 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
         if (input.closeDate) updateData.closeDate = input.closeDate;
         if (input.companyId) updateData.companyId = input.companyId;
         if (input.pointOfContactId) updateData.pointOfContactId = input.pointOfContactId;
-        
+        Object.assign(updateData, pickCustomFieldValues(opportunityCustomFields, input as Record<string, unknown>));
+
         const opportunity = await client.updateOpportunity({
           id: input.id,
           ...updateData
