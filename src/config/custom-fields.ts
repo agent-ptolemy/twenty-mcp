@@ -33,8 +33,8 @@ const fieldDefSchema = z.object({
 const fieldListSchema = z.array(fieldDefSchema);
 
 // Parse and validate the configured custom fields for a given object.
-// Currently only "company" is wired up; the prefix keeps room for others.
-export function loadCustomFields(objectKey: 'company'): CustomFieldDef[] {
+// Wired up for "company" and "opportunity"; the prefix keeps room for others.
+export function loadCustomFields(objectKey: 'company' | 'opportunity'): CustomFieldDef[] {
   const envKey = `CUSTOM_${objectKey.toUpperCase()}_FIELDS`;
   const raw = process.env[envKey];
 
