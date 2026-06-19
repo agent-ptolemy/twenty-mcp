@@ -1013,7 +1013,7 @@ If you're still stuck:
 
 ### 📚 Documentation
 
-- [Full Tool Reference](TOOLS.md) - Detailed documentation of all 29 tools
+- [Full Tool Reference](TOOLS.md) - Detailed documentation of all 34 tools
 - [Testing Guide](TESTING.md) - How to run and write tests
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute to the project
 
@@ -1051,7 +1051,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 This fork adds features and fixes not yet in upstream (`jezweb/twenty-mcp`).
 
-**Total tools: 35** (upstream has 29).
+**Total tools: 34.**
 
 ### Added tools
 
@@ -1156,7 +1156,7 @@ twenty-mcp-server/
 ### Key Components
 
 - **TwentyClient**: GraphQL client that handles API communication with Twenty CRM
-- **MCP Tools**: 29 tools that provide comprehensive CRM functionality to AI assistants
+- **MCP Tools**: 34 tools that provide comprehensive CRM functionality to AI assistants
 - **Type System**: Comprehensive TypeScript definitions for Twenty's data structures
 - **Schema Transformation**: Converts flat tool inputs to Twenty's nested GraphQL schema
 </details>

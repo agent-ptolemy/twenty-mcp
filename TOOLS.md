@@ -1,6 +1,6 @@
 # Twenty MCP Server - Tool Reference
 
-This document provides detailed information about all 29 tools available in the Twenty MCP Server.
+This document provides detailed information about all 34 tools available in the Twenty MCP Server.
 
 ## Table of Contents
 
@@ -218,6 +218,26 @@ Creates a note attached to an entity.
 - `entityId` (string, required): Related entity ID
 - `title` (string, optional): Note title
 
+### search_notes
+Searches notes by title (case-insensitive partial match).
+
+**Parameters:**
+- `searchTerm` (string, required): Text to match against note titles
+- `limit` (number, optional): Maximum number of notes to return (default 20)
+
+### get_note
+Gets a single note by ID.
+
+**Parameters:**
+- `id` (string, required): Note ID
+
+### list_notes
+Lists notes, newest first.
+
+**Parameters:**
+- `limit` (number, optional): Maximum number of notes to return (default 20)
+- `offset` (number, optional): Number of notes to skip (default 0)
+
 ## Relationship Management Tools
 
 ### get_company_contacts
@@ -293,6 +313,17 @@ Gets metadata for specific fields of an object.
 - `fieldNames` (array, optional): Specific fields to query
 
 **Returns:** Detailed field metadata including types, constraints, and descriptions
+
+## Utility Tools
+
+### get_record_url
+Builds a Twenty UI deep-link for a record so it can be opened in a browser. The UI origin is taken from the `TWENTY_UI_URL` environment variable if set, otherwise derived from the API host (stripping a leading `api.`), so it works for both cloud and self-hosted deployments.
+
+**Parameters:**
+- `objectName` (string, required): Object API name (e.g. `company`, `person`, `opportunity`, `note`, `task`)
+- `recordId` (string, required): The record ID
+
+**Returns:** A URL of the form `{ui}/object/{objectName}/{recordId}`
 
 ## Usage Examples
 
