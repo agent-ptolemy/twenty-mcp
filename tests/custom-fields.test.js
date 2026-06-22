@@ -3,7 +3,13 @@
 // Unit tests for the config-driven custom-fields loader (#2 — extended to
 // opportunities). Style follows tests/metadata-orphaned.test.js.
 
-import { loadCustomFields, customFieldsZodShape, pickCustomFieldValues } from '../dist/config/custom-fields.js';
+import {
+  loadCustomFields,
+  customFieldsZodShape,
+  pickCustomFieldValues,
+  customFieldsGraphQLFragment,
+  renderCustomFieldLines,
+} from '../dist/config/custom-fields.js';
 
 let passed = 0;
 let failed = 0;
@@ -87,6 +93,39 @@ console.log('\npickCustomFieldValues — allowlist, no leakage');
   const fields = [{ name: 'isStrategic', type: 'boolean' }];
   const picked = pickCustomFieldValues(fields, { name: 'x' });  // isStrategic not provided
   assert('absent custom field omitted entirely', !('isStrategic' in picked) && Object.keys(picked).length === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\ncustomFieldsGraphQLFragment — read selection set');
+{
+  const fields = [
+    { name: 'isStrategic', type: 'boolean' },
+    { name: 'forecastCategory', type: 'string' },
+  ];
+  const frag = customFieldsGraphQLFragment(fields);
+  assert('fragment lists each declared field name', frag.includes('isStrategic') && frag.includes('forecastCategory'));
+  assert('fragment is newline-joined', frag === 'isStrategic\nforecastCategory');
+  assert('empty fields -> empty fragment', customFieldsGraphQLFragment([]) === '');
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nrenderCustomFieldLines — single-record read output');
+{
+  const fields = [
+    { name: 'isStrategic', type: 'boolean', description: 'Strategic flag' },
+    { name: 'forecastCategory', type: 'string' },
+    { name: 'seatCount', type: 'number' },
+  ];
+  const record = { isStrategic: true, forecastCategory: null, seatCount: 0 };
+  const lines = renderCustomFieldLines(fields, record);
+
+  assert('one line per declared field', lines.length === 3);
+  assert('uses description as label when present', lines[0] === 'Strategic flag: true');
+  assert('falls back to field name as label', lines[1].startsWith('forecastCategory:'));
+  assert('null value renders Not specified', lines[1] === 'forecastCategory: Not specified');
+  // 0 is a real value, not "empty" — must not be swallowed
+  assert('zero is rendered, not treated as empty', lines[2] === 'seatCount: 0');
+  assert('empty fields -> no lines', renderCustomFieldLines([], record).length === 0);
 }
 
 // ---------------------------------------------------------------------------
