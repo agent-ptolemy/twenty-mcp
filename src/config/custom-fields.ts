@@ -24,8 +24,16 @@ export interface CustomFieldDef {
   description?: string;
 }
 
+// The name is interpolated verbatim into GraphQL query strings and write
+// payloads, so it must be a valid GraphQL/Twenty field identifier — reject
+// anything else at load time rather than emit a broken or altered query.
+const GRAPHQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 const fieldDefSchema = z.object({
-  name: z.string().min(1),
+  name: z
+    .string()
+    .min(1)
+    .regex(GRAPHQL_IDENTIFIER, 'must be a valid field identifier (letters, digits, underscore; not starting with a digit)'),
   type: z.enum(['string', 'number', 'boolean']),
   description: z.string().optional(),
 });

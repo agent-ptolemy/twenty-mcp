@@ -57,6 +57,25 @@ console.log('loadCustomFields — per-object env keys');
   delete process.env.CUSTOM_OPPORTUNITY_FIELDS;
 }
 
+// name must be a valid field identifier — it's interpolated into GraphQL verbatim,
+// so a name with spaces/braces/injection must be rejected at load time, not emitted.
+{
+  for (const bad of ['has space', 'name }', '1leading', 'a{b}', 'evil # comment']) {
+    process.env.CUSTOM_OPPORTUNITY_FIELDS = JSON.stringify([{ name: bad, type: 'string' }]);
+    let threw = false;
+    try { loadCustomFields('opportunity'); } catch { threw = true; }
+    assert(`rejects non-identifier name: ${JSON.stringify(bad)}`, threw);
+  }
+  // valid identifiers still load
+  process.env.CUSTOM_OPPORTUNITY_FIELDS = JSON.stringify([
+    { name: 'serviceSize', type: 'string' },
+    { name: '_internal', type: 'string' },
+    { name: 'field2', type: 'number' },
+  ]);
+  assert('accepts valid identifiers', loadCustomFields('opportunity').length === 3);
+  delete process.env.CUSTOM_OPPORTUNITY_FIELDS;
+}
+
 // ---------------------------------------------------------------------------
 console.log('\ncustomFieldsZodShape — builds optional typed schema');
 {
