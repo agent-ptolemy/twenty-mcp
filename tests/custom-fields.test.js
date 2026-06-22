@@ -3,7 +3,13 @@
 // Unit tests for the config-driven custom-fields loader (#2 — extended to
 // opportunities). Style follows tests/metadata-orphaned.test.js.
 
-import { loadCustomFields, customFieldsZodShape, pickCustomFieldValues } from '../dist/config/custom-fields.js';
+import {
+  loadCustomFields,
+  customFieldsZodShape,
+  pickCustomFieldValues,
+  customFieldsGraphQLFragment,
+  renderCustomFieldLines,
+} from '../dist/config/custom-fields.js';
 
 let passed = 0;
 let failed = 0;
@@ -51,6 +57,25 @@ console.log('loadCustomFields — per-object env keys');
   delete process.env.CUSTOM_OPPORTUNITY_FIELDS;
 }
 
+// name must be a valid field identifier — it's interpolated into GraphQL verbatim,
+// so a name with spaces/braces/injection must be rejected at load time, not emitted.
+{
+  for (const bad of ['has space', 'name }', '1leading', 'a{b}', 'evil # comment']) {
+    process.env.CUSTOM_OPPORTUNITY_FIELDS = JSON.stringify([{ name: bad, type: 'string' }]);
+    let threw = false;
+    try { loadCustomFields('opportunity'); } catch { threw = true; }
+    assert(`rejects non-identifier name: ${JSON.stringify(bad)}`, threw);
+  }
+  // valid identifiers still load
+  process.env.CUSTOM_OPPORTUNITY_FIELDS = JSON.stringify([
+    { name: 'serviceSize', type: 'string' },
+    { name: '_internal', type: 'string' },
+    { name: 'field2', type: 'number' },
+  ]);
+  assert('accepts valid identifiers', loadCustomFields('opportunity').length === 3);
+  delete process.env.CUSTOM_OPPORTUNITY_FIELDS;
+}
+
 // ---------------------------------------------------------------------------
 console.log('\ncustomFieldsZodShape — builds optional typed schema');
 {
@@ -87,6 +112,39 @@ console.log('\npickCustomFieldValues — allowlist, no leakage');
   const fields = [{ name: 'isStrategic', type: 'boolean' }];
   const picked = pickCustomFieldValues(fields, { name: 'x' });  // isStrategic not provided
   assert('absent custom field omitted entirely', !('isStrategic' in picked) && Object.keys(picked).length === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\ncustomFieldsGraphQLFragment — read selection set');
+{
+  const fields = [
+    { name: 'isStrategic', type: 'boolean' },
+    { name: 'forecastCategory', type: 'string' },
+  ];
+  const frag = customFieldsGraphQLFragment(fields);
+  assert('fragment lists each declared field name', frag.includes('isStrategic') && frag.includes('forecastCategory'));
+  assert('fragment is newline-joined', frag === 'isStrategic\nforecastCategory');
+  assert('empty fields -> empty fragment', customFieldsGraphQLFragment([]) === '');
+}
+
+// ---------------------------------------------------------------------------
+console.log('\nrenderCustomFieldLines — single-record read output');
+{
+  const fields = [
+    { name: 'isStrategic', type: 'boolean', description: 'Strategic flag' },
+    { name: 'forecastCategory', type: 'string' },
+    { name: 'seatCount', type: 'number' },
+  ];
+  const record = { isStrategic: true, forecastCategory: null, seatCount: 0 };
+  const lines = renderCustomFieldLines(fields, record);
+
+  assert('one line per declared field', lines.length === 3);
+  assert('uses description as label when present', lines[0] === 'Strategic flag: true');
+  assert('falls back to field name as label', lines[1].startsWith('forecastCategory:'));
+  assert('null value renders Not specified', lines[1] === 'forecastCategory: Not specified');
+  // 0 is a real value, not "empty" — must not be swallowed
+  assert('zero is rendered, not treated as empty', lines[2] === 'seatCount: 0');
+  assert('empty fields -> no lines', renderCustomFieldLines([], record).length === 0);
 }
 
 // ---------------------------------------------------------------------------

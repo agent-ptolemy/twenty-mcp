@@ -5,12 +5,29 @@ import {
   loadCustomFields,
   customFieldsZodShape,
   pickCustomFieldValues,
+  renderCustomFieldLines,
 } from '../config/custom-fields.js';
 
 export function registerOpportunityTools(server: McpServer, client: TwentyClient) {
   // Operator-defined custom fields for the Opportunity object (empty by default).
   // See src/config/custom-fields.ts and .env.example (CUSTOM_OPPORTUNITY_FIELDS).
   const opportunityCustomFields = loadCustomFields('opportunity');
+
+  // Compact one-line renderer for list views: shows only custom fields that have
+  // a value, as "label: value" segments. Empty/absent fields are omitted so list
+  // output stays readable. The single-record view uses renderCustomFieldLines,
+  // which instead shows every field (incl. "Not specified") for completeness.
+  const renderPopulatedCustomFields = (
+    fields: typeof opportunityCustomFields,
+    record: Record<string, unknown>
+  ): string =>
+    fields
+      .filter((f) => {
+        const v = record[f.name];
+        return v !== undefined && v !== null && v !== '';
+      })
+      .map((f) => `${f.description ?? f.name}: ${String(record[f.name])}`)
+      .join(', ');
 
   server.tool(
     'create_opportunity',
@@ -86,10 +103,18 @@ export function registerOpportunityTools(server: McpServer, client: TwentyClient
           };
         }
         
-        const amountStr = opportunity.amount 
+        const amountStr = opportunity.amount
           ? `${opportunity.amount.currencyCode} ${(opportunity.amount.amountMicros / 1000000).toFixed(2)}`
           : 'Not specified';
-        
+
+        // Configured custom fields, one line each (incl. "Not specified" so the
+        // single-record view shows completeness — what consumers gate on).
+        const customFieldLines = renderCustomFieldLines(
+          opportunityCustomFields,
+          opportunity as Record<string, unknown>
+        );
+        const customFieldsBlock = customFieldLines.length > 0 ? `\n${customFieldLines.join('\n')}` : '';
+
         return {
           content: [{
             type: 'text',
@@ -98,7 +123,7 @@ Amount: ${amountStr}
 Stage: ${opportunity.stage || 'Not specified'}
 Close Date: ${opportunity.closeDate || 'Not specified'}
 Company ID: ${opportunity.companyId || 'None'}
-Contact ID: ${opportunity.pointOfContactId || 'None'}`
+Contact ID: ${opportunity.pointOfContactId || 'None'}${customFieldsBlock}`
           }],
           data: opportunity
         };
@@ -200,10 +225,13 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
         }
         
         const opportunityList = opportunities.map(opp => {
-          const amount = opp.amount 
+          const amount = opp.amount
             ? `${opp.amount.currencyCode} ${(opp.amount.amountMicros / 1000000).toFixed(2)}`
             : 'N/A';
-          return `- ${opp.name} (${opp.stage || 'No stage'}) - ${amount} [ID: ${opp.id}]`;
+          // On list rows, show only populated custom fields to keep output compact.
+          const customFields = renderPopulatedCustomFields(opportunityCustomFields, opp as Record<string, unknown>);
+          const customSuffix = customFields ? ` — ${customFields}` : '';
+          return `- ${opp.name} (${opp.stage || 'No stage'}) - ${amount} [ID: ${opp.id}]${customSuffix}`;
         }).join('\n');
         
         return {
@@ -245,10 +273,13 @@ Contact ID: ${opportunity.pointOfContactId || 'None'}`
           output += `${stage} (${opportunities.length} opportunities, $${stageValue.toFixed(2)}):\n`;
           
           opportunities.forEach(opp => {
-            const amount = opp.amount 
+            const amount = opp.amount
               ? `$${(opp.amount.amountMicros / 1000000).toFixed(2)}`
               : 'No amount';
-            output += `  - ${opp.name}: ${amount} [ID: ${opp.id}]\n`;
+            // On list rows, show only populated custom fields to keep output compact.
+            const customFields = renderPopulatedCustomFields(opportunityCustomFields, opp as Record<string, unknown>);
+            const customSuffix = customFields ? ` — ${customFields}` : '';
+            output += `  - ${opp.name}: ${amount} [ID: ${opp.id}]${customSuffix}\n`;
           });
           
           output += '\n';

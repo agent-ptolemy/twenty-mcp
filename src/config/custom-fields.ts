@@ -24,8 +24,16 @@ export interface CustomFieldDef {
   description?: string;
 }
 
+// The name is interpolated verbatim into GraphQL query strings and write
+// payloads, so it must be a valid GraphQL/Twenty field identifier — reject
+// anything else at load time rather than emit a broken or altered query.
+const GRAPHQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 const fieldDefSchema = z.object({
-  name: z.string().min(1),
+  name: z
+    .string()
+    .min(1)
+    .regex(GRAPHQL_IDENTIFIER, 'must be a valid field identifier (letters, digits, underscore; not starting with a digit)'),
   type: z.enum(['string', 'number', 'boolean']),
   description: z.string().optional(),
 });
@@ -92,4 +100,28 @@ export function pickCustomFieldValues(
     }
   }
   return out;
+}
+
+// Build a GraphQL selection-set fragment for the configured custom fields, to be
+// spread into a query's node block so Twenty actually returns the values. The
+// declared `name` is used verbatim as the GraphQL field name — operators must
+// declare the Twenty API field name (camelCase), not the display label. Returns
+// a newline-joined string (empty when no custom fields are configured).
+export function customFieldsGraphQLFragment(fields: CustomFieldDef[]): string {
+  return fields.map((f) => f.name).join('\n');
+}
+
+// Render the configured custom fields of a record as human-readable text lines,
+// one per field, for a read tool's output. Only declared fields are read, so an
+// unexpected key on the record can never surface. A field absent or null on the
+// record renders as "Not specified" (mirroring the standard-field rendering).
+export function renderCustomFieldLines(
+  fields: CustomFieldDef[],
+  record: Record<string, unknown>
+): string[] {
+  return fields.map((f) => {
+    const v = record[f.name];
+    const display = v === undefined || v === null || v === '' ? 'Not specified' : String(v);
+    return `${f.description ?? f.name}: ${display}`;
+  });
 }

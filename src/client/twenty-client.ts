@@ -1,6 +1,7 @@
 import { GraphQLClient } from 'graphql-request';
 import { TwentyConfig, Person, Company, Task, TaskCreateInput, Note, NoteCreateInput, RichTextInput, SearchOptions } from '../types/twenty.js';
 import { Opportunity, CreateOpportunityInput, UpdateOpportunityInput, SearchOpportunitiesInput } from '../types/opportunities.js';
+import { loadCustomFields, customFieldsGraphQLFragment } from '../config/custom-fields.js';
 import { Activity, ActivityFilter, EntityActivitiesInput, ActivityTimeline } from '../types/activities.js';
 import { ObjectMetadata, FieldMetadata, ObjectSchema, ObjectSummary, MetadataQueryOptions, FieldQueryOptions } from '../types/metadata.js';
 
@@ -48,6 +49,10 @@ export class TwentyClient {
   private client: GraphQLClient;
   private metadataClient: GraphQLClient;
   private baseUrl: string;
+  // Cached GraphQL fragment for operator-declared opportunity custom fields,
+  // resolved once at construction. Empty string when none are configured, so
+  // queries fall back to the standard fields only.
+  private opportunityCustomFieldsFragment: string;
 
   constructor(config: TwentyConfig) {
     this.baseUrl = config.baseUrl || 'https://api.twenty.com';
@@ -57,6 +62,7 @@ export class TwentyClient {
     };
     this.client = new GraphQLClient(`${this.baseUrl}/graphql`, { headers });
     this.metadataClient = new GraphQLClient(`${this.baseUrl}/metadata`, { headers });
+    this.opportunityCustomFieldsFragment = customFieldsGraphQLFragment(loadCustomFields('opportunity'));
   }
 
   async createPerson(person: Person): Promise<Person> {
@@ -621,6 +627,7 @@ export class TwentyClient {
               pointOfContactId
               createdAt
               updatedAt
+              ${this.opportunityCustomFieldsFragment}
             }
           }
         }
@@ -674,6 +681,7 @@ export class TwentyClient {
               pointOfContactId
               createdAt
               updatedAt
+              ${this.opportunityCustomFieldsFragment}
             }
           }
         }
@@ -732,6 +740,7 @@ export class TwentyClient {
               pointOfContactId
               createdAt
               updatedAt
+              ${this.opportunityCustomFieldsFragment}
             }
           }
         }
